@@ -90,6 +90,10 @@ export default function FilterPanel({ filters, onFiltersChange, availableOptions
     }
   };
 
+  const selectAllArrayFilter = (key: keyof FilterState, values: string[]) => {
+    updateFilter(key, Array.from(new Set(values.filter(Boolean))));
+  };
+
   const removeFromArrayFilter = (key: keyof FilterState, value: string) => {
     const currentArray = filters[key] as string[];
     updateFilter(key, currentArray.filter(item => item !== value));
@@ -120,6 +124,9 @@ export default function FilterPanel({ filters, onFiltersChange, availableOptions
     if ((filters.method?.length || 0) > 0) count++;
     return count;
   };
+
+  const allCountriesSelected = countryOptionsFull.length > 0 && filters.country.length === countryOptionsFull.length;
+  const allMidsSelected = availableOptions.midAliases.length > 0 && filters.midAlias.length === availableOptions.midAliases.length;
 
   return (
     <Card className="p-6 rounded-xl">
@@ -275,7 +282,15 @@ export default function FilterPanel({ filters, onFiltersChange, availableOptions
             </Button>
           </CollapsibleTrigger>
           <CollapsibleContent className="space-y-2 mt-2">
-            <Select onValueChange={(value) => addToArrayFilter('country', value)}>
+            <Select
+              onValueChange={(value) => {
+                if (value === '__select_all_countries__') {
+                  selectAllArrayFilter('country', countryOptionsFull);
+                } else {
+                  addToArrayFilter('country', value);
+                }
+              }}
+            >
               <SelectTrigger data-testid="select-country">
                 <SelectValue placeholder="Select Country" />
               </SelectTrigger>
@@ -290,6 +305,12 @@ export default function FilterPanel({ filters, onFiltersChange, availableOptions
                       className="h-8"
                     />
                   </div>
+                  {/* Select all option */}
+                  <div className="border-b">
+                    <SelectItem value="__select_all_countries__">
+                      Select All Countries ({countryOptionsFull.length})
+                    </SelectItem>
+                  </div>
                   {/* Scrollable list to avoid page scroll */}
                   <div className="max-h-72 overflow-y-scroll" onWheel={(e) => e.stopPropagation()}>
                     {filteredCountryOptions.map(country => (
@@ -300,12 +321,19 @@ export default function FilterPanel({ filters, onFiltersChange, availableOptions
               </SelectContent>
             </Select>
             <div className="flex flex-wrap gap-1">
-              {filters.country.map(country => (
-                <Badge key={country} variant="secondary" className="text-xs" data-testid={`country-filter-${country}`}>
-                  {country}
-                  <X className="w-3 h-3 ml-1 cursor-pointer" onClick={() => removeFromArrayFilter('country', country)} />
+              {allCountriesSelected ? (
+                <Badge variant="secondary" className="text-xs" data-testid="country-filter-all">
+                  All Countries ({countryOptionsFull.length})
+                  <X className="w-3 h-3 ml-1 cursor-pointer" onClick={() => updateFilter('country', [])} />
                 </Badge>
-              ))}
+              ) : (
+                filters.country.map(country => (
+                  <Badge key={country} variant="secondary" className="text-xs" data-testid={`country-filter-${country}`}>
+                    {country}
+                    <X className="w-3 h-3 ml-1 cursor-pointer" onClick={() => removeFromArrayFilter('country', country)} />
+                  </Badge>
+                ))
+              )}
             </div>
           </CollapsibleContent>
         </Collapsible>
@@ -353,12 +381,25 @@ export default function FilterPanel({ filters, onFiltersChange, availableOptions
             </Button>
           </CollapsibleTrigger>
           <CollapsibleContent className="space-y-2 mt-2">
-            <Select onValueChange={(value) => addToArrayFilter('midAlias', value)}>
+            <Select
+              onValueChange={(value) => {
+                if (value === '__select_all_mids__') {
+                  selectAllArrayFilter('midAlias', availableOptions.midAliases);
+                } else {
+                  addToArrayFilter('midAlias', value);
+                }
+              }}
+            >
               <SelectTrigger data-testid="select-mid-alias">
                 <SelectValue placeholder="Select MID Alias" />
               </SelectTrigger>
               <SelectContent>
                 <div className="w-72">
+                  <div className="border-b">
+                    <SelectItem value="__select_all_mids__">
+                      Select All MID Aliases ({availableOptions.midAliases.length})
+                    </SelectItem>
+                  </div>
                   <div className="max-h-72 overflow-y-auto overscroll-contain" onWheel={(e) => e.stopPropagation()}>
                     {availableOptions.midAliases.map(midAlias => (
                       <SelectItem key={midAlias} value={midAlias}>{midAlias}</SelectItem>
@@ -368,12 +409,19 @@ export default function FilterPanel({ filters, onFiltersChange, availableOptions
               </SelectContent>
             </Select>
             <div className="flex flex-wrap gap-1">
-              {filters.midAlias.map(midAlias => (
-                <Badge key={midAlias} variant="secondary" className="text-xs" data-testid={`mid-filter-${midAlias}`}>
-                  {midAlias}
-                  <X className="w-3 h-3 ml-1 cursor-pointer" onClick={() => removeFromArrayFilter('midAlias', midAlias)} />
+              {allMidsSelected ? (
+                <Badge variant="secondary" className="text-xs" data-testid="mid-filter-all">
+                  All MID Aliases ({availableOptions.midAliases.length})
+                  <X className="w-3 h-3 ml-1 cursor-pointer" onClick={() => updateFilter('midAlias', [])} />
                 </Badge>
-              ))}
+              ) : (
+                filters.midAlias.map(midAlias => (
+                  <Badge key={midAlias} variant="secondary" className="text-xs" data-testid={`mid-filter-${midAlias}`}>
+                    {midAlias}
+                    <X className="w-3 h-3 ml-1 cursor-pointer" onClick={() => removeFromArrayFilter('midAlias', midAlias)} />
+                  </Badge>
+                ))
+              )}
             </div>
           </CollapsibleContent>
         </Collapsible>
