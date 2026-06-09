@@ -292,7 +292,7 @@ export default function FilterPanel({ filters, onFiltersChange, availableOptions
               }}
             >
               <SelectTrigger data-testid="select-country">
-                <SelectValue placeholder="Select Country" />
+                <span>{allCountriesSelected ? '__ALL__' : 'Select Country'}</span>
               </SelectTrigger>
               <SelectContent>
                 <div className="w-72">
@@ -308,7 +308,7 @@ export default function FilterPanel({ filters, onFiltersChange, availableOptions
                   {/* Select all option */}
                   <div className="border-b">
                     <SelectItem value="__select_all_countries__">
-                      Select All Countries ({countryOptionsFull.length})
+                      Select All
                     </SelectItem>
                   </div>
                   {/* Scrollable list to avoid page scroll */}
@@ -321,19 +321,12 @@ export default function FilterPanel({ filters, onFiltersChange, availableOptions
               </SelectContent>
             </Select>
             <div className="flex flex-wrap gap-1">
-              {allCountriesSelected ? (
-                <Badge variant="secondary" className="text-xs" data-testid="country-filter-all">
-                  All Countries ({countryOptionsFull.length})
-                  <X className="w-3 h-3 ml-1 cursor-pointer" onClick={() => updateFilter('country', [])} />
+              {filters.country.map(country => (
+                <Badge key={country} variant="secondary" className="text-xs" data-testid={`country-filter-${country}`}>
+                  {country}
+                  <X className="w-3 h-3 ml-1 cursor-pointer" onClick={() => removeFromArrayFilter('country', country)} />
                 </Badge>
-              ) : (
-                filters.country.map(country => (
-                  <Badge key={country} variant="secondary" className="text-xs" data-testid={`country-filter-${country}`}>
-                    {country}
-                    <X className="w-3 h-3 ml-1 cursor-pointer" onClick={() => removeFromArrayFilter('country', country)} />
-                  </Badge>
-                ))
-              )}
+              ))}
             </div>
           </CollapsibleContent>
         </Collapsible>
@@ -391,13 +384,13 @@ export default function FilterPanel({ filters, onFiltersChange, availableOptions
               }}
             >
               <SelectTrigger data-testid="select-mid-alias">
-                <SelectValue placeholder="Select MID Alias" />
+                <span>{allMidsSelected ? '__ALL__' : 'Select MID Alias'}</span>
               </SelectTrigger>
               <SelectContent>
                 <div className="w-72">
                   <div className="border-b">
                     <SelectItem value="__select_all_mids__">
-                      Select All MID Aliases ({availableOptions.midAliases.length})
+                      Select All
                     </SelectItem>
                   </div>
                   <div className="max-h-72 overflow-y-auto overscroll-contain" onWheel={(e) => e.stopPropagation()}>
@@ -409,19 +402,12 @@ export default function FilterPanel({ filters, onFiltersChange, availableOptions
               </SelectContent>
             </Select>
             <div className="flex flex-wrap gap-1">
-              {allMidsSelected ? (
-                <Badge variant="secondary" className="text-xs" data-testid="mid-filter-all">
-                  All MID Aliases ({availableOptions.midAliases.length})
-                  <X className="w-3 h-3 ml-1 cursor-pointer" onClick={() => updateFilter('midAlias', [])} />
+              {filters.midAlias.map(midAlias => (
+                <Badge key={midAlias} variant="secondary" className="text-xs" data-testid={`mid-filter-${midAlias}`}>
+                  {midAlias}
+                  <X className="w-3 h-3 ml-1 cursor-pointer" onClick={() => removeFromArrayFilter('midAlias', midAlias)} />
                 </Badge>
-              ) : (
-                filters.midAlias.map(midAlias => (
-                  <Badge key={midAlias} variant="secondary" className="text-xs" data-testid={`mid-filter-${midAlias}`}>
-                    {midAlias}
-                    <X className="w-3 h-3 ml-1 cursor-pointer" onClick={() => removeFromArrayFilter('midAlias', midAlias)} />
-                  </Badge>
-                ))
-              )}
+              ))}
             </div>
           </CollapsibleContent>
         </Collapsible>
