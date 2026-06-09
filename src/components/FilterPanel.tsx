@@ -18,6 +18,9 @@ export interface FilterState {
   method?: string[]; // Added: Card, Crypto, P2P
 }
 
+const ALL_COUNTRIES_TOKEN = '__ALL_COUNTRIES__';
+const EXCLUDE_COUNTRY_PREFIX = '__EXCLUDE_COUNTRY__::';
+
 interface FilterPanelProps {
   filters: FilterState;
   onFiltersChange: (filters: FilterState) => void;
@@ -83,19 +86,47 @@ export default function FilterPanel({ filters, onFiltersChange, availableOptions
     onFiltersChange({ ...filters, [key]: value });
   };
 
+  const isAllCountriesMode = filters.country.includes(ALL_COUNTRIES_TOKEN);
+  const countryExclusions = filters.country
+    .filter(item => item.startsWith(EXCLUDE_COUNTRY_PREFIX))
+    .map(item => item.replace(EXCLUDE_COUNTRY_PREFIX, ''));
+  const displayedSelectedCountries = isAllCountriesMode
+    ? countryOptionsFull.filter(country => !countryExclusions.includes(country))
+    : filters.country.filter(country => country && country !== ALL_COUNTRIES_TOKEN && !country.startsWith(EXCLUDE_COUNTRY_PREFIX));
+
   const addToArrayFilter = (key: keyof FilterState, value: string) => {
     const currentArray = filters[key] as string[];
+
+    if (key === 'country' && filters.country.includes(ALL_COUNTRIES_TOKEN)) {
+      const exclusionToken = `${EXCLUDE_COUNTRY_PREFIX}${value}`;
+      updateFilter('country', filters.country.filter(item => item !== exclusionToken));
+      return;
+    }
+
     if (!currentArray.includes(value)) {
       updateFilter(key, [...currentArray, value]);
     }
   };
 
   const selectAllArrayFilter = (key: keyof FilterState, values: string[]) => {
+    if (key === 'country') {
+      updateFilter('country', [ALL_COUNTRIES_TOKEN]);
+      return;
+    }
     updateFilter(key, Array.from(new Set(values.filter(Boolean))));
   };
 
   const removeFromArrayFilter = (key: keyof FilterState, value: string) => {
     const currentArray = filters[key] as string[];
+
+    if (key === 'country' && filters.country.includes(ALL_COUNTRIES_TOKEN)) {
+      const exclusionToken = `${EXCLUDE_COUNTRY_PREFIX}${value}`;
+      if (!filters.country.includes(exclusionToken)) {
+        updateFilter('country', [...filters.country, exclusionToken]);
+      }
+      return;
+    }
+
     updateFilter(key, currentArray.filter(item => item !== value));
   };
 
@@ -125,7 +156,7 @@ export default function FilterPanel({ filters, onFiltersChange, availableOptions
     return count;
   };
 
-  const allCountriesSelected = countryOptionsFull.length > 0 && filters.country.length === countryOptionsFull.length;
+  const allCountriesSelected = isAllCountriesMode && displayedSelectedCountries.length === countryOptionsFull.length;
   const allMidsSelected = availableOptions.midAliases.length > 0 && filters.midAlias.length === availableOptions.midAliases.length;
 
   return (
@@ -277,7 +308,7 @@ export default function FilterPanel({ filters, onFiltersChange, availableOptions
             <Button variant="ghost" className="w-full justify-between p-2 h-auto" data-testid="toggle-country-filter">
               <div className="flex items-center gap-2">
                 <MapPin className="w-4 h-4" />
-                <span className="text-sm">Country ({filters.country.length})</span>
+                <span className="text-sm">Country ({displayedSelectedCountries.length})</span>
               </div>
             </Button>
           </CollapsibleTrigger>
@@ -292,7 +323,7 @@ export default function FilterPanel({ filters, onFiltersChange, availableOptions
               }}
             >
               <SelectTrigger data-testid="select-country">
-                <span>{allCountriesSelected ? '__ALL__' : 'Select Country'}</span>
+                <span>{isAllCountriesMode ? '__ALL__' : 'Select Country'}</span>
               </SelectTrigger>
               <SelectContent>
                 <div className="w-72">
@@ -321,7 +352,7 @@ export default function FilterPanel({ filters, onFiltersChange, availableOptions
               </SelectContent>
             </Select>
             <div className="flex flex-wrap gap-1">
-              {filters.country.map(country => (
+              {displayedSelectedCountries.map(country => (
                 <Badge key={country} variant="secondary" className="text-xs" data-testid={`country-filter-${country}`}>
                   {country}
                   <X className="w-3 h-3 ml-1 cursor-pointer" onClick={() => removeFromArrayFilter('country', country)} />

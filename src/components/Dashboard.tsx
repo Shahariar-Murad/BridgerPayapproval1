@@ -18,6 +18,9 @@ import { Button } from '@/components/ui/button';
 import { AlertTriangle, FileText, X, Brain, BarChart3, Eye } from 'lucide-react';
 
 
+const ALL_COUNTRIES_TOKEN = '__ALL_COUNTRIES__';
+const EXCLUDE_COUNTRY_PREFIX = '__EXCLUDE_COUNTRY__::';
+
 const APPROVED_KEYWORDS = ['approved', 'success', 'successful', 'paid', 'completed', 'captured', 'settled'];
 const DECLINED_KEYWORDS = ['declined', 'failed', 'rejected', 'error', 'cancelled', 'canceled', 'expired', 'aborted'];
 
@@ -207,7 +210,12 @@ export default function Dashboard() {
 
     // Convert array filters to Sets for O(1) lookups
     const pspSet = filters.psp.length ? new Set(filters.psp) : null;
-    const countrySet = filters.country.length ? new Set(filters.country) : null;
+    const isAllCountriesMode = filters.country.includes(ALL_COUNTRIES_TOKEN);
+    const countryExclusionSet = isAllCountriesMode
+      ? new Set(filters.country.filter(item => item.startsWith(EXCLUDE_COUNTRY_PREFIX)).map(item => item.replace(EXCLUDE_COUNTRY_PREFIX, '')))
+      : null;
+    const cleanCountryFilters = filters.country.filter(item => item !== ALL_COUNTRIES_TOKEN && !item.startsWith(EXCLUDE_COUNTRY_PREFIX));
+    const countrySet = (!isAllCountriesMode && cleanCountryFilters.length) ? new Set(cleanCountryFilters) : null;
     const statusSet = filters.status.length ? new Set(filters.status) : null;
     const cardTypeSet = filters.cardType.length ? new Set(filters.cardType) : null;
     const midAliasSet = filters.midAlias.length ? new Set(filters.midAlias) : null;
@@ -225,8 +233,12 @@ export default function Dashboard() {
       // PSP filter
       if (pspSet && !pspSet.has(tx.pspName)) return false;
 
-      // Country filter (match against normalized full name)
-      if (countrySet && !countrySet.has(tx.country_full as string) && !countrySet.has(tx.country_code as string)) return false;
+      // Country filter. Select All mode means include every country except the countries explicitly removed.
+      if (isAllCountriesMode && countryExclusionSet) {
+        if (countryExclusionSet.has(tx.country_full as string) || countryExclusionSet.has(tx.country_code as string)) return false;
+      } else if (countrySet && !countrySet.has(tx.country_full as string) && !countrySet.has(tx.country_code as string)) {
+        return false;
+      }
 
       // Status filter
       if (statusSet && !statusSet.has(tx.status)) return false;
