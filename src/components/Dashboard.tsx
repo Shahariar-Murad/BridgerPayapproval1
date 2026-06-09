@@ -17,6 +17,54 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button';
 import { AlertTriangle, FileText, X, Brain, BarChart3, Eye } from 'lucide-react';
 
+
+const APPROVED_KEYWORDS = ['approved', 'success', 'successful', 'paid', 'completed', 'captured', 'settled'];
+const DECLINED_KEYWORDS = ['declined', 'failed', 'rejected', 'error', 'cancelled', 'canceled', 'expired', 'aborted'];
+
+const cleanText = (value: any, defaultValue = ''): string => {
+  const text = String(value ?? '').trim();
+  if (!text || ['nan', 'none', 'null', 'undefined'].includes(text.toLowerCase())) return defaultValue;
+  return text;
+};
+
+const normalizeStatus = (value: any): 'approved' | 'declined' | 'other' => {
+  const text = cleanText(value).toLowerCase();
+  if (APPROVED_KEYWORDS.some(k => text.includes(k))) return 'approved';
+  if (DECLINED_KEYWORDS.some(k => text.includes(k))) return 'declined';
+  return 'other';
+};
+
+const classifyMethod = (psp: any): 'Card' | 'Crypto' | 'P2P' => {
+  const text = cleanText(psp).toLowerCase();
+  if (text.includes('confirmo')) return 'Crypto';
+  if (text.includes('paypal') || text.includes('pay pal')) return 'P2P';
+  return 'Card';
+};
+
+const normalizeCountryCode = (value: any): string => {
+  const text = cleanText(value, 'Unknown').toUpperCase();
+  // NA is Namibia. Never treat it as blank/missing.
+  if (!text || text === 'NAN' || text === 'NONE' || text === 'NULL' || text === 'UNDEFINED') return 'Unknown';
+  return text;
+};
+
+const countryDisplayName = (value: any): string => {
+  const code = normalizeCountryCode(value);
+  if (code === 'Unknown') return 'Unknown';
+  if (code.length === 2 && /^[A-Z]{2}$/.test(code)) {
+    try {
+      const dn = new (Intl as any).DisplayNames(['en'], { type: 'region' });
+      const name = dn.of(code);
+      if (name && typeof name === 'string') return name;
+    } catch {}
+  }
+  return String(value ?? '').trim().replace(/\b([a-z])(\w*)/gi, (_: any, a: string, b: string) => a.toUpperCase() + b.toLowerCase()) || 'Unknown';
+};
+
+const getOrderKey = (tx: Transaction): string => {
+  return cleanText(tx.merchantOrderId) || cleanText(tx.transactionId) || cleanText(tx.id);
+};
+
 interface Transaction {
   id: string;
   processing_date: string;
@@ -25,6 +73,8 @@ interface Transaction {
   pspName: string;
   country: string;
   country_full?: string;
+  country_code?: string;
+  method?: 'Card' | 'Crypto' | 'P2P';
   email: string;
   amount: number;
   currency: string;
@@ -72,68 +122,46 @@ export default function Dashboard() {
     setSelectedCountryDetails(country);
   };
 
-  // Convert raw data to transactions with timezone handling
+  // Convert raw data to normalized transactions with timezone handling
   const transactions = useMemo(() => {
-    const normalizeText = (value: unknown) => String(value ?? '').trim();
-
-    const toFullCountryName = (value: unknown) => {
-      const v = normalizeText(value);
-      if (!v) return '';
-
-      // Important: NA is the ISO-3166 country code for Namibia.
-      // Some CSV/Excel parsers treat NA as a blank/null marker, so we explicitly preserve it.
-      if (v.toUpperCase() === 'NA') return 'Namibia';
-
-      if (v.length === 2 && /^[A-Za-z]{2}$/.test(v)) {
-        try {
-          const dn = new (Intl as any).DisplayNames(['en'], { type: 'region' });
-          const name = dn.of(v.toUpperCase());
-          if (name && typeof name === 'string') return name as string;
-        } catch {}
-      }
-      return v.replace(/\b([a-z])(\w*)/gi, (_: any, a: string, b: string) => a.toUpperCase() + b.toLowerCase());
-    };
-
-    const normalizeCountryCode = (value: unknown) => {
-      const v = normalizeText(value);
-      if (!v) return '';
-      if (v.toUpperCase() === 'NA') return 'NA';
-      return v;
-    };
     return rawData.map((row, index) => {
-      const originalDate = row.processing_date;
-      // Normalize to UTC instant (do NOT shift the instant). We will only change grouping/labels per selected TZ.
-      const processingTs = moment.utc(originalDate).valueOf();
-      const convertedDate = moment.utc(originalDate).toISOString();
+      const originalDate = row.processing_date || row.processingDate || row.completionDate || row.createdAt || row.created_at;
+      const parsed = originalDate ? moment.utc(originalDate) : moment.invalid();
+      const processingTs = parsed.isValid() ? parsed.valueOf() : 0;
+      const convertedDate = parsed.isValid() ? parsed.toISOString() : '';
       const tz = timezone === 'GMT+6' ? 'Asia/Dhaka' : 'UTC';
-      const localDate = moment.tz(processingTs, tz).format('YYYY-MM-DD');
-      
-      const countryRaw = normalizeCountryCode(row.country);
-      const country_full = toFullCountryName(countryRaw);
+      const localDate = parsed.isValid() ? moment.tz(processingTs, tz).format('YYYY-MM-DD') : '';
+
+      const countryCode = normalizeCountryCode(row.country || row.cardCountry || row.customerCountry || row.billingCountry);
+      const pspName = cleanText(row.pspName || row.psp || row.provider || row.paymentProvider || row.processor);
+      const merchantOrderId = cleanText(row.merchantOrderId || row.merchant_order_id || row.orderId || row.merchantOrderID || row.id || `tx_${index}`);
+
       return {
-        id: row.id || `tx_${index}`,
+        id: cleanText(row.id, `tx_${index}`),
         processing_date: convertedDate,
         processing_ts: processingTs,
         local_date: localDate,
-        pspName: normalizeText(row.pspName),
-        country: countryRaw,
-        country_full,
-        email: normalizeText(row.email),
-        amount: parseFloat(row.amount) || 0,
-        currency: normalizeText(row.currency) || 'USD',
-        status: normalizeText(row.status).toLowerCase(),
-        cardType: normalizeText(row.cardType),
-        lastFourDigits: normalizeText(row.lastFourDigits),
-        declineReason: normalizeText(row.declineReason),
-        midAlias: normalizeText(row.midAlias),
-        type: normalizeText(row.type),
-        transactionId: normalizeText(row.transactionId),
-        pspOrderId: normalizeText(row.pspOrderId),
-        merchantOrderId: normalizeText(row.merchantOrderId) || normalizeText(row.id) || `tx_${index}`,
-        bin: normalizeText(row.bin),
-        paymentMethod: normalizeText(row.paymentMethod)
+        pspName,
+        country: countryCode,
+        country_code: countryCode,
+        country_full: countryDisplayName(countryCode),
+        email: cleanText(row.email),
+        amount: parseFloat(String(row.amount ?? row.transactionAmount ?? '0')) || 0,
+        currency: cleanText(row.currency || row.transactionCurrency, 'USD'),
+        status: normalizeStatus(row.status || row.transactionStatus || row.state),
+        cardType: cleanText(row.cardType),
+        lastFourDigits: cleanText(row.lastFourDigits),
+        declineReason: cleanText(row.declineReason || row.decline_reason || row.reason || row.errorReason || row.gatewayDeclineReason, 'Unknown'),
+        midAlias: cleanText(row.midAlias || row.mid || row.MID || row.merchantId || row.merchant_id, 'Unknown'),
+        type: cleanText(row.type),
+        transactionId: cleanText(row.transactionId),
+        pspOrderId: cleanText(row.pspOrderId),
+        merchantOrderId,
+        bin: cleanText(row.bin),
+        paymentMethod: cleanText(row.paymentMethod),
+        method: classifyMethod(pspName)
       };
-    });
+    }).filter(tx => getOrderKey(tx) !== '');
   }, [rawData, timezone]);
 
   // Check for incomplete day data
@@ -184,13 +212,6 @@ export default function Dashboard() {
     const cardTypeSet = filters.cardType.length ? new Set(filters.cardType) : null;
     const midAliasSet = filters.midAlias.length ? new Set(filters.midAlias) : null;
 
-    // Map PSP -> Method category
-    const pspToMethod = (psp: string): 'Card' | 'Crypto' | 'P2P' => {
-      const name = (psp || '').toLowerCase();
-      if (name === 'confirmo') return 'Crypto';
-      if (name === 'paypal') return 'P2P';
-      return 'Card'; // everything else considered Card
-    };
     const methodSet = (filters.method && filters.method.length) ? new Set(filters.method) : null;
 
     const filtered = transactions.filter(tx => {
@@ -205,7 +226,7 @@ export default function Dashboard() {
       if (pspSet && !pspSet.has(tx.pspName)) return false;
 
       // Country filter (match against normalized full name)
-      if (countrySet && !countrySet.has(tx.country_full as string)) return false;
+      if (countrySet && !countrySet.has(tx.country_full as string) && !countrySet.has(tx.country_code as string)) return false;
 
       // Status filter
       if (statusSet && !statusSet.has(tx.status)) return false;
@@ -218,7 +239,7 @@ export default function Dashboard() {
 
       // Method filter (based on PSP mapping)
       if (methodSet) {
-        const derived = pspToMethod(tx.pspName);
+        const derived = tx.method || classifyMethod(tx.pspName);
         if (!methodSet.has(derived)) return false;
       }
 
@@ -259,7 +280,7 @@ export default function Dashboard() {
     // Collapse multiple declines for the same merchantOrderId to one declined
     // If any PSP approves a merchantOrderId, count it as approved overall and do not count as declined
     const moidGroups = filteredTransactions.reduce((acc, tx) => {
-      const key = tx.merchantOrderId || tx.transactionId || tx.id;
+      const key = getOrderKey(tx);
       if (!acc[key]) acc[key] = [] as Transaction[];
       acc[key].push(tx as any);
       return acc;
@@ -290,7 +311,7 @@ export default function Dashboard() {
     
     // Calculate approval rate (only metric that uses both approved and declined)
     const approvalRate = totalRelevantTransactions > 0 
-      ? (approvedTransactions.length / totalRelevantTransactions) * 100 
+      ? (approvedOverall / totalRelevantTransactions) * 100 
       : 0;
     
     // Average daily revenue metric (approved only):
@@ -342,7 +363,7 @@ export default function Dashboard() {
     const t0 = performance.now();
     // Build merchantOrderId groups once
     const byMoid = filteredTransactions.reduce((acc, tx) => {
-      const moid = tx.merchantOrderId || tx.transactionId || tx.id;
+      const moid = getOrderKey(tx);
       if (!acc[moid]) acc[moid] = [] as Transaction[];
       acc[moid].push(tx as any);
       return acc;

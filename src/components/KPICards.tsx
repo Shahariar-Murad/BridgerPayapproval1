@@ -87,7 +87,7 @@ export default function KPICards({ data }: KPICardsProps) {
       id: 'approval-rate',
       title: 'Approval Rate',
       value: data.approvalRate,
-      format: (v: number) => `${v.toFixed(1)}%`,
+      format: (v: number) => `${v.toFixed(2)}%`,
       icon: Target,
       gradient: data.approvalRate >= 70 ? 'from-emerald-500 to-green-600' : 'from-rose-500 to-red-600',
       iconBg: data.approvalRate >= 70 ? 'bg-emerald-500/10' : 'bg-rose-500/10',

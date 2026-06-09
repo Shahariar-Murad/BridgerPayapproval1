@@ -119,8 +119,7 @@ export default function ChartsEnhanced({ data, loading, onCountrySelect, dateRan
     }
   }, []);
   const fullCountryName = (code: string) => {
-    const up = String(code || '').trim().toUpperCase();
-    if (up === 'NA') return 'Namibia';
+    const up = (code || '').toUpperCase();
     if (regionDisplay && up.length === 2) {
       const name = (regionDisplay as any).of(up);
       return name || code;

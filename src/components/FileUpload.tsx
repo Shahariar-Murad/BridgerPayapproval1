@@ -82,9 +82,7 @@ export default function FileUpload({ onDataLoaded = () => {} }: FileUploadProps)
 
       Papa.parse(file, {
         header: true,
-        skipEmptyLines: 'greedy',
-        transformHeader: (header: string) => header.trim(),
-        transform: (value: string) => typeof value === 'string' ? value.trim() : value,
+        skipEmptyLines: true,
         step: (results: any) => {
           batch.push(results.data);
           rowCount++;
@@ -119,11 +117,26 @@ export default function FileUpload({ onDataLoaded = () => {} }: FileUploadProps)
       const workbook = XLSX.read(arrayBuffer, { type: 'array' });
       const firstSheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[firstSheetName];
-      const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: '', raw: false });
-
-      // Send the full parsed Excel file once. This prevents large Excel files from
-      // overwriting the dashboard state chunk-by-chunk.
-      onDataLoaded(jsonData, file.name);
+      const jsonData = XLSX.utils.sheet_to_json(worksheet);
+      
+      // Process in chunks to avoid blocking UI
+      const chunkSize = 1000;
+      const totalChunks = Math.ceil(jsonData.length / chunkSize);
+      
+      for (let i = 0; i < totalChunks; i++) {
+        const start = i * chunkSize;
+        const end = Math.min(start + chunkSize, jsonData.length);
+        const chunk = jsonData.slice(start, end);
+        
+        onDataLoaded(chunk, file.name);
+        setProgress(Math.min(100, Math.round((end / jsonData.length) * 100)));
+        
+        // Yield to the browser
+        if (i < totalChunks - 1) {
+          await new Promise(resolve => setTimeout(resolve, 0));
+        }
+      }
+      
       setProgress(100);
       setIsProcessing(false);
     } catch (err) {
